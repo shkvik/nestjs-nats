@@ -1,5 +1,5 @@
 import { Controller } from "@nestjs/common";
-import { SubscribeJsOpts, NatsControllerOpt } from "src/interface";
+import { SubscribeJsOpts, NatsControllerOpt } from "../interface";
 
 export const NatsController = (options: NatsControllerOpt): ClassDecorator => {
   return <TFunction extends Function>(target: TFunction): void => {

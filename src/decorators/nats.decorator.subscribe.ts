@@ -1,16 +1,14 @@
 import { EventPattern } from "@nestjs/microservices";
-import { SubscribeJsOpts } from "../interface";
+import { SubscribeOpts } from "../interface";
 
-export const SubscribeJs = (options: SubscribeJsOpts): MethodDecorator => {
+export const Subscribe = (options: SubscribeOpts): MethodDecorator => {
   return (target, propertyKey, descriptor) => {
-    const meta: SubscribeJsOpts = {
+    const meta: SubscribeOpts = {
       subject: options.subject,
       isReturned: options.isReturned ?? true,
       returnSubject: options.returnSubject ?? `${options.subject}.result`,
-      stream: options.stream,
-      returnPolicy: options.returnPolicy ?? "ackAck",
     };
-    Object.setPrototypeOf(meta, SubscribeJsOpts.prototype);
+    Object.setPrototypeOf(meta, SubscribeOpts.prototype);
     Reflect.defineMetadata("nats:meta", meta, descriptor.value);
     EventPattern(options.subject, { meta })(target, propertyKey, descriptor);
   };

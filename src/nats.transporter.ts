@@ -1,11 +1,16 @@
+import { NatsClient } from "./nats.client";
+import { ConnectionOptions } from "nats";
 import {
   CustomTransportStrategy,
   MessageHandler,
   Server,
 } from "@nestjs/microservices";
-import { NatsClient } from "./nats.client";
-import { ConnectionOptions } from "nats";
-import { SubscribeBaseOpts, SubscribeJsOpts } from "./interface";
+import {
+  RequestOpts,
+  SubBaseOpts,
+  SubscribeJsOpts,
+  SubscribeOpts,
+} from "./interface";
 
 export class NatsTransporter extends Server implements CustomTransportStrategy {
   protected natsClient: NatsClient;
@@ -19,7 +24,7 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
     await this.natsClient.connect(this.options);
 
     for (const [_, handler] of this.messageHandlers) {
-      const meta = handler.extras.meta as SubscribeBaseOpts;
+      const meta = handler.extras.meta as SubBaseOpts;
       await this.setSubscriber(meta, handler);
     }
 
@@ -38,9 +43,21 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
   }
 
   private async setSubscriber(
-    meta: SubscribeBaseOpts,
+    meta: SubBaseOpts,
     originalMethod: MessageHandler,
   ): Promise<void> {
+    if (meta instanceof RequestOpts) {
+      const patchedMethod = this.getPatchedRequestMethod(originalMethod);
+      this.natsClient.subscribeRequest(meta.subject, patchedMethod);
+    }
+    if (meta instanceof SubscribeOpts) {
+      const patchedMethod = this.getPatchedSubscribeMethod({
+        returnSubject: meta.isReturned ? meta.returnSubject : "",
+        originalMethod,
+        meta,
+      });
+      this.natsClient.subscribe(meta.subject, patchedMethod);
+    }
     if (meta instanceof SubscribeJsOpts) {
       const subjects =
         this.natsClient.getStreamSubjects(meta.stream) || new Set();
@@ -55,7 +72,7 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
       if (newSubjects.length) {
         await this.natsClient.addStream(meta.stream, newSubjects);
       }
-      const patchedMethod = this.getPatchSubscribeJsMethod({
+      const patchedMethod = this.getPatchedSubscribeMethod({
         returnSubject: meta.isReturned ? meta.returnSubject : "",
         originalMethod,
         meta,
@@ -70,13 +87,21 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
     }
   }
 
-  private getPatchSubscribeJsMethod(params: {
-    meta: SubscribeJsOpts;
+  private getPatchedRequestMethod(
+    originalMethod: MessageHandler,
+  ): (...data: unknown[]) => Promise<unknown> {
+    return async (...args) => {
+      return await originalMethod(args[0], args[1]);
+    };
+  }
+
+  private getPatchedSubscribeMethod(params: {
+    meta: SubscribeOpts;
     originalMethod: MessageHandler;
     returnSubject?: string;
   }): (...data: unknown[]) => Promise<void> {
     const { meta, originalMethod, returnSubject } = params;
-    return async (...args: unknown[]): Promise<void> => {
+    return async (...args) => {
       const res = await originalMethod(args[0], args[1]);
       if (meta.isReturned) {
         this.natsClient.publish(returnSubject, res);

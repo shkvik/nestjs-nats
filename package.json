@@ -2,7 +2,7 @@
   "name": "nestjs-nats-transporter",
   "author": "shkvik",
   "license": "MIT",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

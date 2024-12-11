@@ -72,9 +72,9 @@ export class NatsClient {
     }
   }
 
-  public subscribeRpc(
+  public subscribeRequest(
     eventName: string,
-    callback: (...data: unknown[]) => Promise<void>,
+    callback: (...data: unknown[]) => Promise<unknown>,
   ): void {
     const cb: (err: NatsError | null, msg: Msg) => void = async (err, msg) => {
       try {
@@ -110,8 +110,10 @@ export class NatsClient {
         const data = this.jc.decode(msg.data);
         await callback(data, msg);
       } catch (err: unknown) {
-        if (err instanceof Error) {
+        if (err instanceof NatsError) {
           this.logger.error(err.message);
+        } else {
+          throw err;
         }
       }
     };
