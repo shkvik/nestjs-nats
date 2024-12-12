@@ -94,21 +94,29 @@ export class ExampleService {
 
 ## RxJs
 ```ts
-getHelloWorld(): Observable<number> {
-  const payload = [1, 2, 3];
-  return this.client.send<string>('subject', payload); 
+@Injectable()
+export class ExampleService {
+
+  getHelloWorld(): Observable<number> {
+    const payload = [1, 2, 3];
+    return this.client.send<number>('subject', payload); 
+  }
 }
 ```
 
 ## Promise
 ```ts
-async getHelloWorld(): Promise<string> {
-  const payload = [1, 2, 3];
-  const result = await lastValueFrom(
-    this.client.send<string>('subject', payload)
-  );
-  console.log(result) //should be "Hello World!"
-  return result;
+@Injectable()
+export class ExampleService {
+
+  async getHelloWorld(): Promise<string> {
+    const payload = [1, 2, 3];
+    const result = await lastValueFrom(
+      this.client.send<string>('subject', payload)
+    );
+    console.log(result) //should be "Hello World!"
+    return result;
+  }
 }
 ```
 # Publishing events
