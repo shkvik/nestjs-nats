@@ -44,39 +44,24 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
 
   private async setSubscriber(
     meta: SubBaseOpts,
-    originalMethod: MessageHandler,
+    handler: MessageHandler,
   ): Promise<void> {
     if (meta instanceof RequestOpts) {
-      const patchedMethod = this.getPatchedRequestMethod(originalMethod);
+      const patchedMethod = this.getPatchedRequestMethod(handler);
       this.natsClient.subscribeRequest(meta.subject, patchedMethod);
     }
     if (meta instanceof SubscribeOpts) {
-      const patchedMethod = this.getPatchedSubscribeMethod({
-        returnSubject: meta.isReturned ? meta.returnSubject : "",
-        originalMethod,
-        meta,
-      });
+      const patchedMethod = this.getPatchedSubscribeMethod(meta, handler);
       this.natsClient.subscribe(meta.subject, patchedMethod);
     }
     if (meta instanceof SubscribeJsOpts) {
       const subjects =
         this.natsClient.getStreamSubjects(meta.stream) || new Set();
 
-      const newSubjects: string[] = [];
       if (!subjects.has(meta.subject)) {
-        newSubjects.push(meta.subject);
+        await this.natsClient.addStream(meta.stream, [meta.subject]);
       }
-      if (!subjects.has(meta.returnSubject) && meta.isReturned) {
-        newSubjects.push(meta.returnSubject);
-      }
-      if (newSubjects.length) {
-        await this.natsClient.addStream(meta.stream, newSubjects);
-      }
-      const patchedMethod = this.getPatchedSubscribeMethod({
-        returnSubject: meta.isReturned ? meta.returnSubject : "",
-        originalMethod,
-        meta,
-      });
+      const patchedMethod = this.getPatchedSubscribeMethod(meta, handler);
       this.natsClient.subscribeJs({
         callback: patchedMethod,
         stream: meta.stream,
@@ -88,23 +73,22 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
   }
 
   private getPatchedRequestMethod(
-    originalMethod: MessageHandler,
+    handler: MessageHandler,
   ): (...data: unknown[]) => Promise<unknown> {
     return async (...args) => {
-      return await originalMethod(args[0], args[1]);
+      return await handler(args[0], args[1]);
     };
   }
 
-  private getPatchedSubscribeMethod(params: {
-    meta: SubscribeOpts;
-    originalMethod: MessageHandler;
-    returnSubject?: string;
-  }): (...data: unknown[]) => Promise<void> {
-    const { meta, originalMethod, returnSubject } = params;
+  private getPatchedSubscribeMethod(
+    meta: SubscribeOpts,
+    handler: MessageHandler
+  ): (...data: unknown[]) => Promise<void> {
     return async (...args) => {
-      const res = await originalMethod(args[0], args[1]);
-      if (meta.isReturned) {
-        this.natsClient.publish(returnSubject, res);
+      const res = await handler(args[0], args[1]);
+      if (meta?.isReturned) {
+        meta.returnSubject ??= `${meta.subject}.result`;
+        this.natsClient.publish(meta.returnSubject, res);
       }
     };
   }

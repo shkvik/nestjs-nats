@@ -2,7 +2,7 @@
   "name": "nestjs-nats-transporter",
   "author": "shkvik",
   "license": "MIT",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "build:prod": "tsc --build tsconfig.prod.json && npm prune --omit=dev",
+    "build:prod": "tsc --build tsconfig.prod.json",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest"
   },

@@ -25,6 +25,7 @@ export class NatsClientProxy extends ClientProxy implements OnModuleInit {
   ): Observable<TResult> {
     return new Observable<TResult>((observer) => {
       this.natsClient.publish(subject, data, options);
+      observer.next()
       observer.complete();
     });
   }

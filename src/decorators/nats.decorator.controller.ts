@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { SubscribeJsOpts, NatsControllerOpt } from "../interface";
 
-export const NatsController = (options: NatsControllerOpt): ClassDecorator => {
+export const NatsController = (options?: NatsControllerOpt): ClassDecorator => {
   return <TFunction extends Function>(target: TFunction): void => {
     const methodNames = Object.getOwnPropertyNames(target.prototype).filter(
       (methodName) => methodName !== "constructor",
