@@ -1,9 +1,9 @@
 import { Logger } from "@nestjs/common";
+import { ConsumerCfg, NatsClientOptions, StreamCfg } from "./interface";
 import {
-  AckPolicy,
   Codec,
   connect,
-  ConnectionOptions,
+  ConsumerMessages,
   JetStreamClient,
   JetStreamManager,
   JsMsg,
@@ -20,15 +20,15 @@ export class NatsClient {
   private jc: Codec<unknown>;
   private js: JetStreamClient;
   private jsm: JetStreamManager;
+  private consumers: ConsumerMessages[] = [];
   private jStreamSubjects: Map<string, Set<string>>;
   private logger = new Logger(NatsClient.name);
-
-  public async connect(options: ConnectionOptions): Promise<void> {
+  
+  public async connect(options: NatsClientOptions): Promise<void> {
     this.connection = await connect(options);
     this.jc = JSONCodec();
     this.js = this.connection.jetstream();
     this.jsm = await this.connection.jetstreamManager();
-
     this.jStreamSubjects = new Map();
     for await (const page of this.jsm.streams.list()) {
       const subjectSet = new Set(page.config.subjects);
@@ -146,23 +146,29 @@ export class NatsClient {
   public async subscribeJs(params: {
     stream: string;
     subject: string;
+    consumerCfg: ConsumerCfg;
     returnPolicy: "ackAck" | "ack";
     errorPolicy: "term" | "nak";
     callback: (...data: unknown[]) => Promise<void>;
   }): Promise<void> {
-    const { stream, subject, ...etc } = params;
+    const { stream, subject, consumerCfg, ...etc } = params;
     const ci = await this.jsm.consumers.add(stream, {
-      ack_policy: AckPolicy.Explicit,
+      ...consumerCfg,
       filter_subject: subject,
     });
     const consumer = await this.js.consumers.get(stream, ci.name);
     const iterator = await consumer.consume();
+    this.consumers.push(iterator);
     for await (const message of iterator) {
       await this.callBackSubscribeJs({ msg: message, ...etc });
     }
   }
 
-  public async addStream(stream: string, subjects: string[]): Promise<void> {
+  public async addStream(
+    stream: string,
+    subjects: string[],
+    streamCfg?: StreamCfg
+  ): Promise<void> {
     if (this.jStreamSubjects.has(stream)) {
       const subjectSet = this.jStreamSubjects.get(stream);
       const filteredSubjects = subjects.filter((sub) => !subjectSet.has(sub));
@@ -177,6 +183,7 @@ export class NatsClient {
       this.jStreamSubjects.set(stream, subjectSet);
 
       await this.jsm.streams.add({
+        ...streamCfg,
         name: stream,
         subjects: subjects,
       });
@@ -189,11 +196,29 @@ export class NatsClient {
       : undefined;
   }
 
+  public async stopConsume(): Promise<void> {
+    for (const consumer of this.consumers) {
+      consumer.stop()
+    }
+  }
+
   public async disconnect(): Promise<void> {
+    await Promise.all(
+      this.consumers.map(
+        async consumer => await consumer.close()
+      )
+    );
     await this.connection.close();
   }
 
   public isConnected(): boolean {
     return Boolean(this.connection) && this.connection.isClosed();
+  }
+
+  public getConnection(): NatsConnection {
+    if (!this.connection) {
+      throw new ReferenceError();
+    }
+    return this.connection;
   }
 }

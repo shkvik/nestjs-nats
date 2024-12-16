@@ -58,7 +58,14 @@ export class NatsClientProxy extends ClientProxy implements OnModuleInit {
     throw new Error("Method not implemented.");
   }
 
+  public getClient(): NatsClient {
+    if (!this.natsClient) {
+      throw new ReferenceError();
+    }
+    return this.natsClient;
+  }
+
   public async close(): Promise<void> {
-    throw new Error("Method not implemented.");
+    await this.natsClient.disconnect();
   }
 }

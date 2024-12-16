@@ -1,11 +1,12 @@
 import { NatsClient } from "./nats.client";
-import { ConnectionOptions } from "nats";
+import { AckPolicy } from "nats";
 import {
   CustomTransportStrategy,
   MessageHandler,
   Server,
 } from "@nestjs/microservices";
 import {
+  NatsClientOptions,
   RequestOpts,
   SubBaseOpts,
   SubscribeJsOpts,
@@ -15,8 +16,12 @@ import {
 export class NatsTransporter extends Server implements CustomTransportStrategy {
   protected natsClient: NatsClient;
 
-  constructor(protected options: ConnectionOptions) {
+  constructor(protected options: NatsClientOptions) {
     super();
+  }
+
+  public getClient(): NatsClient {
+    return this.natsClient;
   }
 
   public async listen(callback: () => void): Promise<void> {
@@ -36,7 +41,9 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
     callback();
   }
 
-  public async close(): Promise<void> {}
+  public async close(): Promise<void> {
+    await this.natsClient.disconnect();
+  }
 
   public isConnected(): boolean {
     return this.natsClient.isConnected();
@@ -46,6 +53,10 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
     meta: SubBaseOpts,
     handler: MessageHandler,
   ): Promise<void> {
+    if (this.options?.test) {
+      meta.subject = `test.${meta.subject}`;
+      meta.returnSubject &&= `test.${meta.returnSubject}`;
+    }
     if (meta instanceof RequestOpts) {
       const patchedMethod = this.getPatchedRequestMethod(handler);
       this.natsClient.subscribeRequest(meta.subject, patchedMethod);
@@ -55,19 +66,25 @@ export class NatsTransporter extends Server implements CustomTransportStrategy {
       this.natsClient.subscribe(meta.subject, patchedMethod);
     }
     if (meta instanceof SubscribeJsOpts) {
+      if (this.options?.test) {
+        meta.stream = `test-${meta.stream}`;
+      }
       const subjects =
         this.natsClient.getStreamSubjects(meta.stream) || new Set();
 
       if (!subjects.has(meta.subject)) {
-        await this.natsClient.addStream(meta.stream, [meta.subject]);
+        await this.natsClient.addStream(meta.stream, [meta.subject], meta.streamCfg);
       }
       const patchedMethod = this.getPatchedSubscribeMethod(meta, handler);
       this.natsClient.subscribeJs({
         callback: patchedMethod,
         stream: meta.stream,
         subject: meta.subject,
-        errorPolicy: meta.errorPolicy ?? "term",
         returnPolicy: meta.returnPolicy ?? "ackAck",
+        errorPolicy: meta.errorPolicy ?? "term",
+        consumerCfg: meta.consumerCfg ?? {
+          ack_policy: AckPolicy.Explicit,
+        },
       });
     }
   }

@@ -3,10 +3,19 @@ import { SubscribeJsOpts } from "../interface";
 
 export const SubscribeJs = (options: SubscribeJsOpts): MethodDecorator => {
   return (target, propertyKey, descriptor) => {
+
+    const isReturned = options.isReturned ?? false;
+    let returnSubject: string;
+
+    if (isReturned) {
+      returnSubject = options.returnSubject || `${options.subject}.result`;
+    }
     const meta: SubscribeJsOpts = {
       subject: options.subject,
-      isReturned: options.isReturned ?? true,
-      returnSubject: options.returnSubject ?? `${options.subject}.result`,
+      isReturned: isReturned,
+      returnSubject: returnSubject,
+      streamCfg: options.streamCfg,
+      consumerCfg: options.consumerCfg,
       stream: options.stream,
       returnPolicy: options.returnPolicy ?? "ackAck",
     };

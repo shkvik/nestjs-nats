@@ -19,6 +19,8 @@ export const NatsController = (options?: NatsControllerOpt): ClassDecorator => {
         ) as SubscribeJsOpts;
         if (meta && meta instanceof SubscribeJsOpts) {
           meta.stream ??= options.stream;
+          meta.streamCfg ??= options.streamCfg;
+          meta.consumerCfg ??= options.consumerCfg;
         }
       }
     }
